@@ -1,6 +1,27 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+function getAIClient() {
+  // Priority:
+  // 1. process.env.API_KEY (Explicitly selected by user via dialog)
+  // 2. process.env.GEMINI_API_KEY (Provided by environment, might be placeholder)
+  const selectedKey = process.env.API_KEY;
+  const projectKey = process.env.GEMINI_API_KEY;
+
+  let apiKey = selectedKey || projectKey;
+
+  // Robust check for invalid/placeholder keys
+  const isPlaceholder = (key: string | undefined) => {
+    if (!key) return true;
+    const lowerKey = key.toLowerCase();
+    return lowerKey.includes('free tier') || lowerKey === 'undefined' || lowerKey === 'null';
+  };
+
+  if (isPlaceholder(apiKey)) {
+    throw new Error("Gemini API key is missing or invalid. If you see 'AI Studio free tier', please use the 'Configure' button to select a project with a valid key.");
+  }
+
+  return new GoogleGenAI({ apiKey });
+}
 
 export interface TweetRequest {
   role: string;
@@ -20,6 +41,7 @@ export interface GenerationResult {
 
 export async function generateTweetIdeas(request: TweetRequest): Promise<GenerationResult> {
   const { role, topic, tone } = request;
+  const ai = getAIClient();
 
   const toneInstructions = {
     friendly: "Warm, approachable, and encouraging. Use more conversational flow.",

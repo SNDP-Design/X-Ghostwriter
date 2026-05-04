@@ -1,5 +1,17 @@
 {
   "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "lastLogin"]
+    },
     "TweetHistory": {
       "title": "Tweet History",
       "description": "Historical record of generated tweet ideas for a user.",
@@ -36,6 +48,10 @@
     }
   },
   "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profile document."
+    },
     "users/{userId}/history/{historyId}": {
       "schema": "TweetHistory",
       "description": "User specific tweet generation history."

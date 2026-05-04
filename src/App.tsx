@@ -21,7 +21,8 @@ import {
   serverTimestamp, 
   deleteDoc, 
   doc, 
-  getDocs 
+  getDocs,
+  setDoc
 } from 'firebase/firestore';
 
 enum OperationType {
@@ -127,12 +128,85 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [dbReady, setDbReady] = useState(false);
+  const [apiKeyMissing, setApiKeyMissing] = useState(() => {
+    const key = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    return !key || key === 'AI Studio free tier';
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [isPlatformDetected, setIsPlatformDetected] = useState(false);
+
+  const handleOpenKeySelection = async () => {
+    console.log("Triggering API Key selection dialog...");
+    if (window.aistudio?.openSelectKey) {
+      try {
+        setError(null);
+        await window.aistudio.openSelectKey();
+        console.log("Dialog closed. Assuming success and reloading...");
+        // Use a slight delay before reload to ensure platform state syncs
+        setTimeout(() => window.location.reload(), 500);
+      } catch (err) {
+        console.error("Failed to open key selection:", err);
+        setError("Failed to open the key selection dialog. Error: " + (err instanceof Error ? err.message : String(err)));
+      }
+    } else {
+      console.warn("Platform interface not found on window.aistudio");
+      setError("Platform interface (window.aistudio) not detected. If you are in AI Studio, please refresh the page. If the button is unresponsive, try adding a key manually in the Secrets panel.");
+    }
+  };
+
+  // Connection and Platform Test
+  useEffect(() => {
+    let checkCount = 0;
+    const checkPlatform = async () => {
+      // Check multiple times as it might take a moment to be injected
+      if (window.aistudio) {
+        setIsPlatformDetected(true);
+        try {
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          if (hasKey) {
+            setApiKeyMissing(false);
+          }
+        } catch (e) {
+          console.warn("Error checking for selected API key:", e);
+        }
+      } else if (checkCount < 10) {
+        checkCount++;
+        setTimeout(checkPlatform, 200);
+      }
+    };
+    checkPlatform();
+    const testConnection = async () => {
+      try {
+        await getDocs(query(collection(db, 'test-connection'), limit(1)));
+        setDbReady(true);
+      } catch (error) {
+        console.warn("Initial database check:", error);
+        setDbReady(true); 
+      }
+    };
+    testConnection();
+  }, []);
 
   // Auth State Observer
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       setAuthLoading(false);
+      
+      if (u) {
+        // Update user profile in Firestore
+        try {
+          await setDoc(doc(db, 'users', u.uid), {
+            email: u.email,
+            displayName: u.displayName || null,
+            photoURL: u.photoURL || null,
+            lastLogin: serverTimestamp(),
+          }, { merge: true });
+        } catch (error) {
+          console.error("Error updating user profile:", error);
+        }
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -193,6 +267,7 @@ export default function App() {
 
     setLoading(true);
     setResult(null);
+    setError(null);
     setMobileMenuOpen(false);
     try {
       const data = await generateTweetIdeas(formData);
@@ -223,8 +298,26 @@ export default function App() {
         };
         setHistory(prev => [newHistoryItem, ...prev].slice(0, 10));
       }
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
+      let displayError = "An unexpected error occurred";
+      
+      if (err instanceof Error) {
+        displayError = err.message;
+        // Check if the error message is a JSON string from the API
+        try {
+          if (displayError.trim().startsWith('{')) {
+            const parsed = JSON.parse(displayError);
+            if (parsed.error?.message) {
+              displayError = parsed.error.message;
+            }
+          }
+        } catch (e) {
+          // Not JSON, use original message
+        }
+      }
+      
+      setError(displayError);
     } finally {
       setLoading(false);
     }
@@ -250,14 +343,13 @@ export default function App() {
 
   const deleteSingleHistoryItem = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!confirm('Delete this entry?')) return;
-
+    
     if (user) {
       const historyPath = `users/${user.uid}/history`;
       try {
         await deleteDoc(doc(db, historyPath, id));
       } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, historyPath);
+        console.error('Delete failed:', error);
       }
     } else {
       setHistory(prev => prev.filter(item => item.id !== id));
@@ -281,6 +373,26 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-bg-main font-sans overflow-x-hidden">
+      {apiKeyMissing && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-center gap-4 text-[10px] text-amber-500 font-medium">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-3 h-3" />
+            <span>
+              {isPlatformDetected 
+                ? "Gemini API Key needs configuration. Please select a project with billing or provide a key." 
+                : "Gemini API Key missing. Please configure it in the Secrets panel."}
+            </span>
+          </div>
+          {isPlatformDetected && (
+            <button 
+              onClick={handleOpenKeySelection}
+              className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded text-[9px] uppercase tracking-wider cursor-pointer transition-colors"
+            >
+              Configure
+            </button>
+          )}
+        </div>
+      )}
       {/* Header Navigation */}
       <header className="flex items-center justify-between px-4 md:px-8 py-4 border-b border-border-subtle bg-bg-main z-50 sticky top-0">
         <div className="flex items-center gap-3">
@@ -306,13 +418,23 @@ export default function App() {
                   Logout <LogOut className="w-2.5 h-2.5" />
                 </button>
               </div>
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="profile" className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-white/10" referrerPolicy="no-referrer" />
-              ) : (
-                <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                  <User className="w-4 h-4 text-text-muted" />
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="profile" className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-white/10" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                    <User className="w-4 h-4 text-text-muted" />
+                  </div>
+                )}
+                {/* Mobile Logout Button */}
+                <button 
+                  onClick={() => logout()} 
+                  className="sm:hidden p-1.5 text-red-500/80 hover:text-red-500"
+                  aria-label="Logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ) : (
             <button 
@@ -342,7 +464,7 @@ export default function App() {
 
         {/* Sidebar Controls */}
         <aside className={cn(
-          "fixed inset-y-0 left-0 z-40 w-72 md:w-80 border-r border-border-subtle bg-bg-surface p-6 flex flex-col gap-8 overflow-y-auto shrink-0 transition-transform duration-300 lg:relative lg:translate-x-0 lg:z-0",
+          "fixed inset-y-0 left-0 z-40 w-72 md:w-96 xl:w-[400px] border-r border-border-subtle bg-bg-surface p-6 flex flex-col gap-8 overflow-y-auto shrink-0 transition-transform duration-300 lg:relative lg:translate-x-0 lg:z-0",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         )}>
           <div className="lg:hidden flex items-center justify-between mb-4">
@@ -383,7 +505,7 @@ export default function App() {
                     type="button"
                     onClick={() => setFormData({ ...formData, tone: t })}
                     className={cn(
-                      "px-3 py-1 text-[10px] rounded-full transition-all border",
+                      "px-3 py-1 text-[10px] rounded-full transition-all border capitalize",
                       formData.tone === t 
                         ? "bg-white/10 text-white border-white/20 font-bold" 
                         : "border-border-subtle text-text-muted hover:text-white"
@@ -411,19 +533,9 @@ export default function App() {
           </form>
 
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <label className="sidebar-label flex items-center gap-2 mb-0">
-                <Clock className="w-3 h-3" />
-                Recent
-              </label>
-              {user && history.length > 0 && (
-                <button 
-                  onClick={clearHistory}
-                  className="text-[10px] text-text-muted hover:text-white uppercase tracking-tighter"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              )}
+            <div className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-text-muted shrink-0" />
+              <span className="text-[10px] uppercase tracking-[0.2em] text-text-muted font-bold leading-none">Recent</span>
             </div>
             
             {!user ? (
@@ -431,30 +543,30 @@ export default function App() {
                 onClick={() => loginWithGoogle()}
                 className="text-left p-3 rounded bg-bg-input/30 border border-dashed border-border-subtle hover:border-white/20 transition-all text-[10px] text-text-muted italic group"
               >
-                <span className="group-hover:text-white transition-colors">Login to view history →</span>
+                <span className="group-hover:text-white transition-colors">Login to view history</span>
               </button>
             ) : (
               history.length > 0 ? (
                 <div className="flex flex-col gap-2">
                   {history.map((item) => (
-                    <div key={item.id} className="relative group">
+                    <div key={item.id} className="group flex items-stretch gap-0">
                       <button
                         onClick={() => loadFromHistory(item)}
-                        className="w-full text-left p-3 rounded bg-bg-input/50 border border-border-subtle hover:border-white/20 transition-all group-hover:pr-10"
+                        className="flex-1 text-left p-3 rounded-l bg-bg-input/50 border-y border-l border-border-subtle hover:border-white/20 transition-all cursor-pointer"
                       >
-                        <div className="flex items-center justify-between mb-1 text-[10px]">
-                          <span className="font-bold text-white uppercase tracking-wider truncate max-w-[120px]">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold text-white uppercase tracking-wider truncate">
                             {item.request.role}
                           </span>
-                          <ChevronRight className="w-3 h-3 text-[#333] group-hover:text-white transition-colors" />
+                          <p className="text-[10px] text-text-muted line-clamp-1 italic">
+                            {item.request.topic}
+                          </p>
                         </div>
-                        <p className="text-[10px] text-text-muted line-clamp-1 italic">
-                          {item.request.topic}
-                        </p>
                       </button>
                       <button
                         onClick={(e) => deleteSingleHistoryItem(e, item.id)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-500 transition-all"
+                        className="px-3 rounded-r bg-bg-input/50 border-y border-r border-[#1a1a1a] hover:border-red-500/30 hover:bg-red-500/10 text-text-muted hover:text-red-500 transition-all shrink-0 flex items-center justify-center group-hover:border-border-subtle"
+                        title="Delete entry"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -467,7 +579,7 @@ export default function App() {
             )}
           </div>
 
-          <div className="mt-auto pt-6 border-t border-border-subtle">
+          <div className="mt-auto pt-6 border-t border-border-subtle flex flex-col gap-4">
             <div className="p-4 rounded-xl bg-gradient-to-br from-bg-input to-bg-main border border-border-accent">
               <p className="text-[10px] text-text-muted uppercase tracking-widest mb-1 italic font-mono">Current Engine</p>
               <p className="text-xs font-semibold">Gemini 3 Flash</p>
@@ -478,6 +590,41 @@ export default function App() {
         {/* Main Output Area */}
         <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-bg-main scroll-smooth">
           <AnimatePresence mode="wait">
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-xs text-center max-w-2xl mx-auto"
+              >
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <CloseIcon className="w-4 h-4 shrink-0" />
+                  <span className="font-bold uppercase tracking-widest text-[10px]">Generation Failed</span>
+                </div>
+                <p className="opacity-80">{error}</p>
+                {error.toLowerCase().includes("high demand") && (
+                  <p className="mt-2 text-[10px] font-bold text-amber-500 animate-pulse">
+                    This is a temporary service limit. Please wait 30 seconds and try again.
+                  </p>
+                )}
+                {(apiKeyMissing || error.includes("API key not valid")) && (
+                  <div className="mt-4 flex flex-col items-center gap-3">
+                    <p className="text-[10px] italic">
+                      Note: If you are on the free tier, the platform usually handles the key. If it's failing, you might need to select a project with billing or provide a manual key.
+                    </p>
+                    <button
+                      onClick={handleOpenKeySelection}
+                      className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+                    >
+                      Select/Configure API Key
+                    </button>
+                    <p className="text-[9px] opacity-60">
+                      Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline hover:text-white">aistudio.google.com/app/apikey</a> to get a key.
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {!result && !loading && (
               <motion.div
                 key="empty"
