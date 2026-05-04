@@ -122,6 +122,7 @@ export default function App() {
     tone: 'friendly',
   });
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Engines Active");
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -266,61 +267,85 @@ export default function App() {
     if (!formData.role || !formData.topic) return;
 
     setLoading(true);
+    setLoadingMessage("Engines Active");
     setResult(null);
     setError(null);
     setMobileMenuOpen(false);
-    try {
-      const data = await generateTweetIdeas(formData);
-      setResult(data);
-      
-      const newHistoryData = {
-        timestamp: user ? serverTimestamp() : Date.now(),
-        request: { ...formData },
-        result: data,
-      };
 
-      if (user) {
-        const historyPath = `users/${user.uid}/history`;
-        try {
-          await addDoc(collection(db, historyPath), {
-            ...newHistoryData,
-            userId: user.uid
-          });
-        } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, historyPath);
-        }
-      } else {
-        const newHistoryItem: HistoryItem = {
-          id: Math.random().toString(36).substring(7),
-          timestamp: Date.now(),
+    const maxRetries = 3;
+    let attempt = 0;
+
+    const executeRequest = async () => {
+      try {
+        const data = await generateTweetIdeas(formData);
+        setResult(data);
+        
+        const newHistoryData = {
+          timestamp: user ? serverTimestamp() : Date.now(),
           request: { ...formData },
           result: data,
         };
-        setHistory(prev => [newHistoryItem, ...prev].slice(0, 10));
-      }
-    } catch (err) {
-      console.error(err);
-      let displayError = "An unexpected error occurred";
-      
-      if (err instanceof Error) {
-        displayError = err.message;
-        // Check if the error message is a JSON string from the API
-        try {
-          if (displayError.trim().startsWith('{')) {
-            const parsed = JSON.parse(displayError);
-            if (parsed.error?.message) {
-              displayError = parsed.error.message;
+
+        if (user) {
+          const historyPath = `users/${user.uid}/history`;
+          try {
+            await addDoc(collection(db, historyPath), {
+              ...newHistoryData,
+              userId: user.uid
+            });
+          } catch (error) {
+            handleFirestoreError(error, OperationType.CREATE, historyPath);
+          }
+        } else {
+          const newHistoryItem: HistoryItem = {
+            id: Math.random().toString(36).substring(7),
+            timestamp: Date.now(),
+            request: { ...formData },
+            result: data,
+          };
+          setHistory(prev => [newHistoryItem, ...prev].slice(0, 10));
+        }
+        setLoading(false);
+      } catch (err) {
+        console.error(`Attempt ${attempt + 1} failed:`, err);
+        
+        let displayError = "An unexpected error occurred";
+        let isHighDemand = false;
+        
+        if (err instanceof Error) {
+          displayError = err.message;
+          try {
+            if (displayError.trim().startsWith('{')) {
+              const parsed = JSON.parse(displayError);
+              if (parsed.error?.message) {
+                displayError = parsed.error.message;
+              }
+              if (parsed.error?.code === 503 || displayError.toLowerCase().includes("high demand")) {
+                isHighDemand = true;
+              }
+            } else if (displayError.toLowerCase().includes("high demand")) {
+              isHighDemand = true;
+            }
+          } catch (e) {
+            if (displayError.toLowerCase().includes("high demand")) {
+              isHighDemand = true;
             }
           }
-        } catch (e) {
-          // Not JSON, use original message
         }
+
+        if (isHighDemand && attempt < maxRetries) {
+          attempt++;
+          setLoadingMessage(`High demand. Retrying in 15s... (Attempt ${attempt}/${maxRetries})`);
+          setTimeout(executeRequest, 15000); // 15s retry
+          return;
+        }
+        
+        setError(displayError);
+        setLoading(false);
       }
-      
-      setError(displayError);
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    executeRequest();
   };
 
   const clearHistory = async () => {
@@ -650,7 +675,10 @@ export default function App() {
                 className="h-full flex flex-col items-center justify-center text-center"
               >
                 <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mb-4" />
-                <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/50">Engines Active</p>
+                <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/50">{loadingMessage}</p>
+                {loadingMessage.includes("Retrying") && (
+                  <p className="mt-2 text-[10px] text-amber-500/60 transition-pulse animate-pulse">Taking a bit longer due to server traffic...</p>
+                )}
               </motion.div>
             )}
 
