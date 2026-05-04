@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "TweetHistory": {
+      "title": "Tweet History",
+      "description": "Historical record of generated tweet ideas for a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the user who generated this." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the ideas were generated." },
+        "request": {
+          "type": "object",
+          "properties": {
+            "role": { "type": "string" },
+            "topic": { "type": "string" },
+            "tone": { "type": "string" }
+          }
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "header": { "type": "string" },
+            "ideas": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string" },
+                  "content": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": ["userId", "timestamp", "request", "result"]
+    }
+  },
+  "firestore": {
+    "users/{userId}/history/{historyId}": {
+      "schema": "TweetHistory",
+      "description": "User specific tweet generation history."
+    }
+  }
+}

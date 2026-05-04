@@ -1,0 +1,62 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-bg-main: #0A0A0A;
+  --color-bg-surface: #0D0D0D;
+  --color-bg-input: #1A1A1A;
+  --color-text-main: #EDEDED;
+  --color-text-muted: #666666;
+  --color-border-subtle: #222222;
+  --color-border-accent: #333333;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-main text-text-main antialiased selection:bg-white selection:text-black;
+  }
+}
+
+.sidebar-label {
+  @apply text-[10px] uppercase tracking-[0.2em] text-text-muted font-bold block mb-2;
+}
+
+/* Mobile Sidebar Overlay */
+.mobile-sidebar-overlay {
+  @apply fixed inset-0 bg-black/80 backdrop-blur-sm z-40 lg:hidden;
+}
+
+.input-field-dark {
+  @apply w-full px-3 py-2.5 bg-bg-input border border-border-accent rounded text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20 transition-all placeholder:text-[#444];
+}
+
+.btn-ghost {
+  @apply px-4 py-1.5 text-sm rounded border border-border-accent text-text-main hover:bg-bg-input transition-colors disabled:opacity-50;
+}
+
+.btn-white {
+  @apply px-4 py-1.5 text-sm rounded bg-white text-black font-semibold hover:bg-[#eaeaea] transition-colors disabled:opacity-50;
+}
+
+.glass-card-dark {
+  @apply bg-[#111] border border-border-subtle rounded-lg p-5 shadow-2xl;
+}
+
+.markdown-body-dark {
+  @apply text-sm leading-relaxed;
+}
+
+.markdown-body-dark p {
+  @apply mb-4;
+}
+
+.markdown-body-dark ol {
+  @apply space-y-4 list-decimal ml-4;
+}
+
+.markdown-body-dark li {
+  @apply pl-2 border-l border-border-subtle;
+}

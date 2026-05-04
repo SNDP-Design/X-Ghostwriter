@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidHistory(data) {
+      return data.keys().hasAll(['userId', 'timestamp', 'request', 'result']) &&
+             data.keys().size() == 4 &&
+             data.userId == request.auth.uid &&
+             data.timestamp is timestamp &&
+             data.request is map &&
+             data.result is map;
+    }
+
+    // User history collection
+    match /users/{userId}/history/{historyId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidHistory(incoming()) && isValidId(historyId);
+      allow delete: if isOwner(userId);
+    }
+  }
+}
