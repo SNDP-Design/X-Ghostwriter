@@ -17,7 +17,7 @@ function getAIClient() {
   };
 
   if (isPlaceholder(apiKey)) {
-    throw new Error("Gemini API key is missing or invalid. If you see 'AI Studio free tier', please use the 'Configure' button to select a project with a valid key.");
+    throw new Error("Gemini API key is missing or invalid. Please check your configuration.");
   }
 
   return new GoogleGenAI({ apiKey });

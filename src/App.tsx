@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Twitter, Sparkles, RefreshCcw, Copy, Check, Twitter as TwitterIcon, Clock, Trash2, ChevronRight, LogOut, LogIn, User, Menu, X as CloseIcon } from 'lucide-react';
+import { Twitter, Sparkles, RefreshCcw, Copy, Check, Twitter as TwitterIcon, Clock, Trash2, ChevronRight, LogOut, LogIn, User, Menu, X as CloseIcon, ExternalLink } from 'lucide-react';
 import { generateTweetIdeas, type TweetRequest, type GenerationResult, type TweetIdea } from './services/geminiService';
 import { cn } from './lib/utils';
 import { auth, loginWithGoogle, logout, db } from './lib/firebase';
@@ -148,11 +148,11 @@ export default function App() {
         setTimeout(() => window.location.reload(), 500);
       } catch (err) {
         console.error("Failed to open key selection:", err);
-        setError("Failed to open the key selection dialog. Error: " + (err instanceof Error ? err.message : String(err)));
+        setError("Failed to open the key selection dialog. Please try refreshing or using the Secrets panel.");
       }
     } else {
       console.warn("Platform interface not found on window.aistudio");
-      setError("Platform interface (window.aistudio) not detected. If you are in AI Studio, please refresh the page. If the button is unresponsive, try adding a key manually in the Secrets panel.");
+      setError("Platform connect failed. Please add your GEMINI_API_KEY manually in the Secrets panel at the top.");
     }
   };
 
@@ -171,7 +171,7 @@ export default function App() {
         } catch (e) {
           console.warn("Error checking for selected API key:", e);
         }
-      } else if (checkCount < 10) {
+      } else if (checkCount < 20) { // Increased to 4 seconds total
         checkCount++;
         setTimeout(checkPlatform, 200);
       }
@@ -467,7 +467,7 @@ export default function App() {
               className="flex items-center gap-1.5 md:gap-2 px-2 py-1 md:px-3 md:py-1.5 text-[10px] md:text-xs rounded border border-border-accent hover:bg-white hover:text-black transition-all shrink-0"
             >
               <LogIn className="w-3.5 h-3.5" />
-              Sign In
+              Get started for free
             </button>
           )}
         </div>
@@ -487,16 +487,20 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Sidebar Controls */}
+        {/* Sidebar Controls - In extension mode (narrow width), we might want this to be the primary view if no results */}
         <aside className={cn(
           "fixed inset-y-0 left-0 z-40 w-72 md:w-96 xl:w-[400px] border-r border-border-subtle bg-bg-surface p-6 flex flex-col gap-8 overflow-y-auto shrink-0 transition-transform duration-300 lg:relative lg:translate-x-0 lg:z-0",
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full",
+          // Auto-show sidebar if no results and on small screens (like sidebar extension)
+          !result && !loading && "max-lg:translate-x-0"
         )}>
           <div className="lg:hidden flex items-center justify-between mb-4">
             <h2 className="text-xs font-bold uppercase tracking-widest text-[#444]">Navigation</h2>
-            <button onClick={() => setMobileMenuOpen(false)}>
-              <CloseIcon className="w-5 h-5 text-text-muted transition-colors hover:text-white" />
-            </button>
+            {result && (
+              <button onClick={() => setMobileMenuOpen(false)}>
+                <CloseIcon className="w-5 h-5 text-text-muted transition-colors hover:text-white" />
+              </button>
+            )}
           </div>
           
           <form onSubmit={handleSubmit} className="flex flex-col gap-6">
@@ -576,7 +580,10 @@ export default function App() {
                   {history.map((item) => (
                     <div key={item.id} className="group flex items-stretch gap-0">
                       <button
-                        onClick={() => loadFromHistory(item)}
+                        onClick={() => {
+                          loadFromHistory(item);
+                          if (window.innerWidth < 1024) setMobileMenuOpen(false);
+                        }}
                         className="flex-1 text-left p-3 rounded-l bg-bg-input/50 border-y border-l border-border-subtle hover:border-white/20 transition-all cursor-pointer"
                       >
                         <div className="flex flex-col gap-1">
@@ -604,17 +611,15 @@ export default function App() {
             )}
           </div>
 
-          <div className="mt-auto pt-6 border-t border-border-subtle flex flex-col gap-4">
-            <div className="p-4 rounded-xl bg-gradient-to-br from-bg-input to-bg-main border border-border-accent">
-              <p className="text-[10px] text-text-muted uppercase tracking-widest mb-1 italic font-mono">Current Engine</p>
-              <p className="text-xs font-semibold">Gemini 3 Flash</p>
-            </div>
-          </div>
         </aside>
 
         {/* Main Output Area */}
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-bg-main scroll-smooth">
+        <main className={cn(
+          "flex-1 p-4 md:p-8 overflow-y-auto bg-bg-main scroll-smooth transition-all duration-300",
+          !result && !loading && "max-lg:opacity-0 max-lg:pointer-events-none"
+        )}>
           <AnimatePresence mode="wait">
+
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -631,20 +636,43 @@ export default function App() {
                     This is a temporary service limit. Please wait 30 seconds and try again.
                   </p>
                 )}
-                {(apiKeyMissing || error.includes("API key not valid")) && (
+                {(apiKeyMissing || error.includes("API key")) && (
                   <div className="mt-4 flex flex-col items-center gap-3">
-                    <p className="text-[10px] italic">
-                      Note: If you are on the free tier, the platform usually handles the key. If it's failing, you might need to select a project with billing or provide a manual key.
-                    </p>
-                    <button
-                      onClick={handleOpenKeySelection}
-                      className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
-                    >
-                      Select/Configure API Key
-                    </button>
-                    <p className="text-[9px] opacity-60">
-                      Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline hover:text-white">aistudio.google.com/app/apikey</a> to get a key.
-                    </p>
+                    {isPlatformDetected ? (
+                      <>
+                        <p className="text-[10px] italic max-w-sm">
+                          Select a project with a valid API key to continue.
+                        </p>
+                        <button
+                          onClick={handleOpenKeySelection}
+                          className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+                        >
+                          Configure API Connection
+                        </button>
+                      </>
+                    ) : (
+                      <div className="pt-4 border-t border-white/5 w-full">
+                        <p className="text-[10px] sm:text-xs italic mb-4 text-white/70">
+                          To run this app, you need to provide your <b>GEMINI_API_KEY</b>:
+                        </p>
+                        <div className="bg-white/5 rounded-lg p-4 mb-4 text-left border border-white/10">
+                          <ol className="text-[10px] space-y-2 list-decimal list-inside text-white/60">
+                            <li>Find the <span className="text-white font-bold">Secrets</span> tab in the top header menu.</li>
+                            <li>Add a new secret named <span className="text-white font-mono">GEMINI_API_KEY</span>.</li>
+                            <li>Paste your API key as the value.</li>
+                            <li>Refresh this page.</li>
+                          </ol>
+                        </div>
+                        <a 
+                          href="https://aistudio.google.com/app/apikey" 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                          Get a free API Key <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -689,11 +717,22 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 className="max-w-5xl mx-auto space-y-8"
               >
-                <header className="mb-10 text-center lg:text-left">
-                  <h2 className="text-lg md:text-2xl font-light mb-2 text-white/60 px-4">
-                    {result.header || "Tweet Architecture"}
-                  </h2>
-                  <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted px-4">Optimized for engagement and authority.</p>
+                <header className="mb-10 text-center lg:text-left flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg md:text-2xl font-light mb-2 text-white/60 px-4">
+                      {result.header || "Tweet Architecture"}
+                    </h2>
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-text-muted px-4">Optimized for engagement and authority.</p>
+                  </div>
+                  {window.innerWidth < 1024 && (
+                    <button 
+                      onClick={() => setMobileMenuOpen(true)}
+                      className="mx-4 px-4 py-2 bg-white/5 border border-white/10 rounded text-[10px] uppercase font-bold tracking-widest text-white/60 hover:text-white transition-colors flex items-center justify-center gap-2"
+                    >
+                      <RefreshCcw className="w-3 h-3" />
+                      Adjust Inputs
+                    </button>
+                  )}
                 </header>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 px-2">

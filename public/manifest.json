@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Tweet Architect",
+  "version": "1.0.0",
+  "description": "Generate viral tweet ideas directly from your sidebar.",
+  "permissions": [
+    "sidePanel",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*.google.com/"
+  ],
+  "action": {
+    "default_title": "Open Tweet Architect"
+  },
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "icons": {
+    "128": "icon128.png"
+  }
+}
