@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>XGhostwriter Sidebar</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+    iframe {
+      border: none;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="fallback" style="color: white; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center;">
+    <div style="margin-bottom: 20px;">
+      <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 12px; background: white; margin-bottom: 12px;">
+        <span style="color: black; font-weight: bold; font-size: 20px;">X</span>
+      </div>
+      <h1 style="font-size: 18px; font-weight: 500; margin: 0 0 8px 0;">XGhostwriter</h1>
+      <p style="font-size: 14px; color: #94a3b8; margin: 0;">Your sidebar assistant.</p>
+    </div>
+
+    <!-- This step is crucial for Chrome Extensions -->
+    <div id="auth-step" style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
+      <p style="font-size: 13px; font-weight: 500; margin-top: 0;">Authorization Required</p>
+      <p id="connectivity-status" style="font-size: 11px; color: #fbbf24; margin-bottom: 8px;">Checking connectivity...</p>
+      <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">To use the sidebar, you must first log in via the regular web page.</p>
+      <a href="https://ais-pre-bn325icmpdv6ttgrbu7mog-27836221828.asia-east1.run.app" target="_blank" id="auth-btn" style="display: block; width: 100%; padding: 10px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; font-size: 14px; font-weight: 500;">
+        1. Login / Open Web App
+      </a>
+      <button id="refresh-btn" style="display: block; width: 100%; padding: 10px; background: transparent; color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; font-size: 14px; font-weight: 500; margin-top: 8px; cursor: pointer;">
+        2. Refresh Sidebar
+      </button>
+    </div>
+
+    <p style="font-size: 11px; color: #64748b;">
+      Tip: If it still "refuses to connect", the login page is likely blocking the window. 
+      Log in first in a new tab, then come back here.
+    </p>
+  </div>
+  <iframe id="main-frame" src="about:blank" allow="clipboard-write" style="display: block;"></iframe>
+  <script src="sidebar.js"></script>
+</body>
+</html>

@@ -158,6 +158,9 @@ export default function App() {
 
   // Connection and Platform Test
   useEffect(() => {
+    // Notify the parent (Chrome extension sidebar) that we are loaded
+    window.parent.postMessage({ type: 'XGHOSTWRITER_LOADED' }, '*');
+
     let checkCount = 0;
     const checkPlatform = async () => {
       // Check multiple times as it might take a moment to be injected
@@ -431,7 +434,7 @@ export default function App() {
             <span className="text-black font-bold text-base md:text-lg leading-none">X</span>
           </div>
           <h1 className="text-sm md:text-lg font-medium tracking-tight truncate">
-            GhostWriter <span className="text-text-muted font-normal hidden sm:inline">/ Founder Edition</span>
+            XGhostwriter <span className="text-text-muted font-normal hidden sm:inline">/ Founder Edition</span>
           </h1>
         </div>
         <div className="flex gap-2 md:gap-4 items-center">
@@ -720,7 +723,7 @@ export default function App() {
                 <header className="mb-10 text-center lg:text-left flex flex-col lg:flex-row lg:items-end justify-between gap-4">
                   <div>
                     <h2 className="text-lg md:text-2xl font-light mb-2 text-white/60 px-4">
-                      {result.header || "Tweet Architecture"}
+                      {result.header || "XGhostwriter Architecture"}
                     </h2>
                     <p className="text-[10px] font-mono uppercase tracking-widest text-text-muted px-4">Optimized for engagement and authority.</p>
                   </div>

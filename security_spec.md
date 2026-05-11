@@ -1,4 +1,4 @@
-# Security Specification - Founder Tweet Architect
+# Security Specification - XGhostwriter
 
 ## Data Invariants
 1. A history entry cannot exist without a matching `userId` in the document data that matches the authenticated user and the parent path ID.

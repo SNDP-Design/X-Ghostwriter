@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Tweet Architect",
+  "name": "XGhostwriter",
   "version": "1.0.0",
   "description": "Generate viral tweet ideas directly from your sidebar.",
   "permissions": [
@@ -8,15 +8,17 @@
     "storage"
   ],
   "host_permissions": [
-    "https://*.google.com/"
+    "https://*.run.app/*",
+    "https://*.google.com/*"
   ],
   "action": {
-    "default_title": "Open Tweet Architect"
+    "default_title": "Open XGhostwriter"
   },
   "side_panel": {
-    "default_path": "index.html"
+    "default_path": "extension.html"
   },
-  "icons": {
-    "128": "icon128.png"
+  "minimum_chrome_version": "114",
+  "background": {
+    "service_worker": "background.js"
   }
 }
